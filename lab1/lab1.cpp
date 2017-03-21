@@ -5,15 +5,16 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
+#include <signal.h>
 
 typedef enum {READY=1, SHOOT, HIT, MISS, DEAD, FINALIZE} message_type;
 
-typedef struct {
+struct message_t {
     long pid;
     message_type mtype;
     int r;
     int c;
-} message_t;
+};
 
 char S[10][10];
 
@@ -27,25 +28,32 @@ int pid;
 int msqid;
 const key_t key = 12345;
 
+const size_t msg_sz = sizeof(message_t) - sizeof(long);
+
 void send(message_t* m){
-  m -> pid = (pid + 1) % 2 + 1;
-  if (msgsnd(msqid, &m, sizeof(message_t), 0) == -1) {
+  m->pid = pid^3;
+  // printf("%d Saljem poruku pid %d\n", pid, m->pid);
+  if (msgsnd(msqid, m, msg_sz, 0) == -1) {
     perror("msgsnd+");
   }
 }
 
 void rcv(message_t* m){
-  if (msgrcv(msqid, &m, sizeof(m)-sizeof(long), pid, 0) == -1) {
+  // printf("Cekam poruku %d\n", pid);
+  int lenn = msgrcv(msqid, m, msg_sz, pid, 0);
+  if (lenn == -1) {
       perror("msgrcv");
       exit(1);
   }
+  // printf("%d\n", lenn);
+  // printf("Primio poruku %ld\n", m->pid);
 }
 
 bool send_shoot() {
   printf("ispali na polje: ");
   message_t m;
   m.mtype = SHOOT;
-  scanf("%d %d\n", &m.r, &m.c);
+  scanf(" %d %d", &m.r, &m.c);
   send(&m);
   rcv(&m);
 
@@ -117,6 +125,15 @@ void p2(){
   }
 }
 
+void retreat(int failure)
+{
+    if (msgctl(msqid, IPC_RMID, NULL) == -1) {
+        perror("msgctl");
+        exit(1);
+    }
+    exit(0);
+}
+
 int main(int argc, char *argv[])
 {
   if (argc != 2) {
@@ -127,16 +144,22 @@ int main(int argc, char *argv[])
 	if (strcmp(argv[1], "p1") == 0) {
 		printf("Player1 %s\n", argv[1]);
     pid = 1;
-	} else {
+	} else if (strcmp(argv[1], "p2") == 0) {
     printf("Player2 %s\n", argv[1]);
     pid = 2;
+  } else {
+    printf("Unknown player!!!\n");
+    exit(1);
   }
 
-  printf("Creating message queues\n");
+  printf("PID %d\n", pid);
+  printf("Creating message queues; msg_sz %lu\n", msg_sz);
   if ((msqid = msgget(key, 0600 | IPC_CREAT)) == -1) {
       perror("msgget");
       exit(1);
   }
+  sigset(SIGINT, retreat);
+  printf("MSGID %d\n", msqid);
 
   read_field();
 
