@@ -13,7 +13,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-const int NUM_PROC = 5;
+const int NUM_PROC = 2;
 const int MAXN=1000;
 
 unsigned int time = 0;
@@ -39,8 +39,8 @@ void send_to(message_type type, int target) {
     time = time + 1;
     if (type == REQUEST) {
         request_queue[id] = time;
-        granted[target] = false;
-        granted[id] = true;
+        // granted[target] = false;
+        // granted[id] = true;
     }
 
     message_t message;
@@ -97,7 +97,6 @@ void rcv(int wait_time) {
   if (retval == -1)
     perror("select()");
   else if (retval) {
-    printf("NASAO nes %d\n", retval);
     for (int i = 0; i < NUM_PROC; ++i) {
       if (i == id)
         continue;
@@ -108,12 +107,16 @@ void rcv(int wait_time) {
 }
 
 bool can_enter() {
+    printf("GRANTED[%d]: ", id);
+    for (int i = 0; i < NUM_PROC; ++i)
+        printf(" %d", granted[i]);
+    printf("\n");
     for (int i = 0; i < NUM_PROC; ++i) {
         if (request_queue[i] < request_queue[id])
             return false;
         if (!granted[i])
             return false;
-        }
+    }
     return true;
 }
 
@@ -122,6 +125,7 @@ void start_child() {
     close(fd[id][i][0]);
     close(fd[i][id][1]);
     request_queue[i] = MAXN;
+    granted[i] = false;
   }
 
   for (int i = 0; i < 1; ++i) {
@@ -146,8 +150,6 @@ int main(void) {
       if (pipe(fd[i][j]) == -1)
         printf("ERROR u otvaranju cjevovoda\n");
     }
-    granted[i] = false;
-    request_queue[i] = MAXN;
   }
 
   for (size_t i = 0; i < NUM_PROC; i++) {
