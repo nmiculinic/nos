@@ -13,7 +13,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-const int NUM_PROC = 2;
+const int NUM_PROC = 3;
 const int MAXN=1000;
 
 unsigned int time = 0;
@@ -39,8 +39,8 @@ void send_to(message_type type, int target) {
     time = time + 1;
     if (type == REQUEST) {
         request_queue[id] = time;
-        // granted[target] = false;
-        // granted[id] = true;
+        granted[target] = false;
+        granted[id] = true;
     }
 
     message_t message;
@@ -67,12 +67,13 @@ void rcv_fd(int fd) {
     printf("ERROR!!!_\n");
   }
   time = max(message.time_stamp, time) + 1;
-  printf("[%d] RCV %d -> %d %s\n", time, message.origin, id,
+  printf("[%d] RCV %d -> %d %s\n", time, id, message.origin,
          message_type_names[message.type]);
 
   switch (message.type) {
   case REQUEST:
-    request_queue[message.origin] = time;
+    request_queue[message.origin] = message.time_stamp;
+    send_to(GRANT, message.origin);
     break;
   case GRANT:
     granted[message.origin] = true;
@@ -109,11 +110,25 @@ void rcv(int wait_time) {
   }
 }
 
+void check_req() {
+    // printf("REQ_%d", id);
+    int min_time = MAXN;
+    for (int i = 0; i < NUM_PROC; ++i) {
+        min_time = min(min_time, request_queue[i]);
+        // printf(" %d", request_queue[i]);
+    }
+    // printf("\n");
+    for (int i = 0; i < NUM_PROC; ++i) {
+        if (id != i && request_queue[i] == min_time)
+            send_to(GRANT, i);
+    }
+}
+
 bool can_enter() {
-    printf("GRANTED[%d]: ", id);
-    for (int i = 0; i < NUM_PROC; ++i)
-        printf(" %d", granted[i]);
-    printf("\n");
+    // printf("GRANTED[%d]: ", id);
+    // for (int i = 0; i < NUM_PROC; ++i)
+        // printf(" %d", granted[i]);
+    // printf("\n");
     for (int i = 0; i < NUM_PROC; ++i) {
         if (request_queue[i] < request_queue[id])
             return false;
@@ -124,6 +139,7 @@ bool can_enter() {
 }
 
 void start_child() {
+    time = 10 * id;
   for (int i = 0; i < NUM_PROC; ++i) {
     close(fd[id][i][0]);
     close(fd[i][id][1]);
@@ -131,7 +147,7 @@ void start_child() {
     granted[i] = false;
   }
 
-  for (int i = 0; i < 1; ++i) {
+  for (int i = 0; i < 2; ++i) {
     broadcast(REQUEST);
     for (;;) {
         rcv(1);
@@ -140,7 +156,9 @@ void start_child() {
             sleep(1);
             printf("[%d] Proc %d izlazi iz kriticni\n", time, id);
             broadcast(RELEASE);
+            break;
         }
+        check_req();
     }
   }
   exit(0);
@@ -162,10 +180,12 @@ int main(void) {
     case 0:
       id = i;
       start_child();
+      exit(0);
     default:
       break;
     }
   }
+
   wait(NULL);
   exit(0);
 }
