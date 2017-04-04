@@ -73,10 +73,13 @@ void rcv_fd(int fd) {
   switch (message.type) {
   case REQUEST:
     request_queue[message.origin] = time;
+    break;
   case GRANT:
     granted[message.origin] = true;
+    break;
   case RELEASE:
     request_queue[message.origin] = MAXN;
+    break;
   }
 }
 
