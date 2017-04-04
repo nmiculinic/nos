@@ -186,6 +186,8 @@ int main(void) {
     }
   }
 
-  wait(NULL);
+  for (int i = 0; i < NUM_PROC; ++i)
+      wait(NULL);
+      
   exit(0);
 }
